@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "asus.rog-g16",
+  "name": "ASUS ROG Zephyrus G16 Control Center",
+  "version": "1.0.0",
+  "author": "Ken",
+  "license": "MIT",
+  "description": "Native Omarchy controls for ASUS ROG Zephyrus G16 lighting, power, special keys, and touchpad gestures.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "activation": "on-demand",
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "ROG G16",
+    "description": "Laptop lighting, power, keyboard, and touchpad controls",
+    "category": "System",
+    "aliases": [
+      "asus",
+      "rog",
+      "g16",
+      "laptop"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
