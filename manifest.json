@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "asus.rog-g16",
   "name": "ASUS ROG Zephyrus G16 Control Center",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Ken",
   "license": "MIT",
   "description": "Native Omarchy controls for ASUS ROG Zephyrus G16 lighting, power, special keys, and touchpad gestures.",

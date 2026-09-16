@@ -22,6 +22,9 @@ Panel {
   readonly property var touchpad: config.touchpad || ({})
   readonly property var gestures: config.gestures || ({})
   readonly property var keys: config.keys || ({})
+  readonly property var keyCommands: config.keyCommands || ({})
+  readonly property var keyCombos: config.keyCombos || ({})
+  readonly property var slash: config.slash || ({})
   readonly property var power: snapshot.power || ({ profiles: ["Quiet", "Balanced", "Performance"] })
   readonly property var armoury: snapshot.armoury || ({})
 
@@ -38,7 +41,15 @@ Panel {
     { value: "browser", label: "Browser" },
     { value: "screenshot", label: "Screenshot" },
     { value: "play-pause", label: "Play / pause" },
-    { value: "codex", label: "Codex" }
+    { value: "codex", label: "Codex" },
+    { value: "custom-command", label: "Custom command" },
+    { value: "key-combo", label: "Send key combo" }
+  ]
+
+  readonly property var slashModes: [
+    "Static", "Bounce", "Slash", "Loading", "BitStream", "Transmission",
+    "Flow", "Flux", "Phantom", "Spectrum", "Hazard", "Interfacing",
+    "Ramp", "GameOver", "Start", "Buzzer"
   ]
 
   readonly property var gestureOptions: [
@@ -459,6 +470,86 @@ Panel {
                   secondaryColour.text, effectSpeed.value, effectDirection.value
                 ], "Applying Aura effect…")
               }
+
+              PanelSeparator { foreground: root.bar.foreground }
+              PanelSectionHeader { text: "SLASH LIGHTING"; foreground: root.bar.foreground; fontFamily: root.bar.fontFamily }
+              Toggle {
+                width: parent.width
+                label: "Slash LED"
+                description: "Enable the diagonal lid light bar"
+                checked: root.slash.enabled === true
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                onClicked: root.runCommand(["set-slash", "enabled", checked ? "false" : "true"], "Updating Slash LED…")
+              }
+              Dropdown {
+                width: parent.width
+                label: "Slash animation"
+                value: root.slash.mode || "Bounce"
+                options: root.slashModes
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                onChanged: function(value) { root.runCommand(["set-slash", "mode", value], "Changing Slash animation…") }
+              }
+              Column {
+                width: parent.width
+                spacing: Style.spacing.labelGap
+                Row {
+                  width: parent.width
+                  Text { text: "Slash brightness"; color: root.bar.foreground; font.family: root.bar.fontFamily; font.pixelSize: Style.font.body }
+                  Item { width: Math.max(0, parent.width - parent.children[0].implicitWidth - parent.children[2].implicitWidth); height: 1 }
+                  Text { text: Math.round(slashBrightness.dragging ? slashBrightness.liveValue : slashBrightness.value); color: root.bar.foreground; font.family: root.bar.fontFamily; font.pixelSize: Style.font.body; font.bold: true }
+                }
+                PanelSlider {
+                  id: slashBrightness
+                  width: parent.width
+                  bar: root.bar
+                  minimum: 0
+                  maximum: 255
+                  step: 5
+                  integer: true
+                  value: Number(root.slash.brightness === undefined ? 255 : root.slash.brightness)
+                  onReleased: function(value) { root.runCommand(["set-slash", "brightness", String(Math.round(value))], "Setting Slash brightness…") }
+                }
+              }
+              Dropdown {
+                width: parent.width
+                label: "Animation interval"
+                value: String(root.slash.interval === undefined ? 0 : root.slash.interval)
+                options: [
+                  {value:"0",label:"0 · fastest"}, {value:"1",label:"1"},
+                  {value:"2",label:"2"}, {value:"3",label:"3"},
+                  {value:"4",label:"4"}, {value:"5",label:"5 · slowest"}
+                ]
+                foreground: root.bar.foreground
+                fontFamily: root.bar.fontFamily
+                onChanged: function(value) { root.runCommand(["set-slash", "interval", value], "Setting Slash interval…") }
+              }
+              Toggle {
+                width: parent.width; label: "Show on boot"; checked: root.slash.showOnBoot !== false
+                foreground: root.bar.foreground; fontFamily: root.bar.fontFamily
+                onClicked: root.runCommand(["set-slash", "showOnBoot", checked ? "false" : "true"], "Updating Slash boot animation…")
+              }
+              Toggle {
+                width: parent.width; label: "Show on shutdown"; checked: root.slash.showOnShutdown !== false
+                foreground: root.bar.foreground; fontFamily: root.bar.fontFamily
+                onClicked: root.runCommand(["set-slash", "showOnShutdown", checked ? "false" : "true"], "Updating Slash shutdown animation…")
+              }
+              Toggle {
+                width: parent.width; label: "Show on sleep"; checked: root.slash.showOnSleep !== false
+                foreground: root.bar.foreground; fontFamily: root.bar.fontFamily
+                onClicked: root.runCommand(["set-slash", "showOnSleep", checked ? "false" : "true"], "Updating Slash sleep animation…")
+              }
+              Toggle {
+                width: parent.width; label: "Allow on battery"; checked: root.slash.showOnBattery !== false
+                foreground: root.bar.foreground; fontFamily: root.bar.fontFamily
+                onClicked: root.runCommand(["set-slash", "showOnBattery", checked ? "false" : "true"], "Updating Slash battery setting…")
+              }
+              Toggle {
+                width: parent.width; label: "Low-battery warning"; checked: root.slash.showBatteryWarning !== false
+                foreground: root.bar.foreground; fontFamily: root.bar.fontFamily
+                onClicked: root.runCommand(["set-slash", "showBatteryWarning", checked ? "false" : "true"], "Updating Slash warning…")
+              }
             }
 
             Column {
@@ -574,11 +665,11 @@ Panel {
                 font.family: root.bar.fontFamily; font.pixelSize: Style.font.caption
                 wrapMode: Text.WordWrap
               }
-              KeyRow { title: "M1"; configKey: "m1"; currentValue: root.keys.m1 || "volume-down" }
-              KeyRow { title: "M2"; configKey: "m2"; currentValue: root.keys.m2 || "volume-up" }
-              KeyRow { title: "M3"; configKey: "m3"; currentValue: root.keys.m3 || "mic-mute" }
-              KeyRow { title: "M4"; configKey: "m4"; currentValue: root.keys.m4 || "control-panel" }
-              KeyRow { title: "Copilot"; configKey: "copilot"; currentValue: root.keys.copilot || "codex" }
+              KeyRow { title: "M1"; configKey: "m1"; currentValue: root.keys.m1 || "volume-down"; customCommand: root.keyCommands.m1 || ""; keyCombo: root.keyCombos.m1 || "" }
+              KeyRow { title: "M2"; configKey: "m2"; currentValue: root.keys.m2 || "volume-up"; customCommand: root.keyCommands.m2 || ""; keyCombo: root.keyCombos.m2 || "" }
+              KeyRow { title: "M3"; configKey: "m3"; currentValue: root.keys.m3 || "mic-mute"; customCommand: root.keyCommands.m3 || ""; keyCombo: root.keyCombos.m3 || "" }
+              KeyRow { title: "M4"; configKey: "m4"; currentValue: root.keys.m4 || "control-panel"; customCommand: root.keyCommands.m4 || ""; keyCombo: root.keyCombos.m4 || "" }
+              KeyRow { title: "Copilot"; configKey: "copilot"; currentValue: root.keys.copilot || "codex"; customCommand: root.keyCommands.copilot || ""; keyCombo: root.keyCombos.copilot || "" }
             }
           }
         }
@@ -611,29 +702,55 @@ Panel {
     }
   }
 
-  component KeyRow: Row {
+  component KeyRow: Column {
+    id: keyRow
     required property string title
     required property string configKey
     required property string currentValue
+    required property string customCommand
+    required property string keyCombo
     width: parent.width
-    spacing: Style.space(10)
-    Text {
-      width: parent.width * 0.25
-      text: parent.title
-      color: root.bar.foreground
-      font.family: root.bar.fontFamily
-      font.pixelSize: Style.font.body
-      font.bold: true
-      anchors.verticalCenter: parent.verticalCenter
+    spacing: Style.space(6)
+
+    Row {
+      width: parent.width
+      spacing: Style.space(10)
+      Text {
+        width: parent.width * 0.25
+        text: keyRow.title
+        color: root.bar.foreground
+        font.family: root.bar.fontFamily
+        font.pixelSize: Style.font.body
+        font.bold: true
+        anchors.verticalCenter: parent.verticalCenter
+      }
+      Dropdown {
+        width: parent.width * 0.75 - parent.spacing
+        showLabel: false
+        value: keyRow.currentValue
+        options: root.actionOptions
+        foreground: root.bar.foreground
+        fontFamily: root.bar.fontFamily
+        onChanged: function(value) { root.setConfig("keys." + keyRow.configKey, value) }
+      }
     }
-    Dropdown {
-      width: parent.width * 0.75 - parent.spacing
-      showLabel: false
-      value: parent.currentValue
-      options: root.actionOptions
+
+    TextField {
+      visible: keyRow.currentValue === "custom-command"
+      width: parent.width
+      text: keyRow.customCommand
+      placeholderText: "Command, e.g. notify-send 'M key pressed'"
       foreground: root.bar.foreground
-      fontFamily: root.bar.fontFamily
-      onChanged: function(value) { root.setConfig("keys." + parent.configKey, value) }
+      onEditingFinished: if (text !== keyRow.customCommand) root.setConfig("keyCommands." + keyRow.configKey, text)
+    }
+
+    TextField {
+      visible: keyRow.currentValue === "key-combo"
+      width: parent.width
+      text: keyRow.keyCombo
+      placeholderText: "Key combo, e.g. CTRL + SHIFT + T"
+      foreground: root.bar.foreground
+      onEditingFinished: if (text !== keyRow.keyCombo) root.setConfig("keyCombos." + keyRow.configKey, text)
     }
   }
 

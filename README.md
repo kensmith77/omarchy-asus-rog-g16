@@ -6,11 +6,12 @@ the GU605 family and detects optional firmware controls before showing them.
 ## Features
 
 - Keyboard backlight brightness and Aura static, breathe, and rainbow effects
+- Slash LED enable, brightness, interval, animation, and boot/sleep/battery behavior
 - Quiet, Balanced, and Performance profiles
 - Battery charge limit
 - Boot sound, panel overdrive, Eco/dGPU-disable, and discrete GPU MUX toggles
 - GPU TGP, Dynamic Boost, temperature target, and CPU PL1/PL2 tuning
-- Reassignable M1–M4 and Copilot keys
+- Reassignable M1–M4 and Copilot keys, including custom commands and key combos
 - Trackpad enable, natural scrolling, pointer/scroll speed, tap-to-click,
   clickfinger, disable-while-typing, drag lock, and middle-click emulation
 - Configurable 3- and 4-finger swipe gestures
@@ -62,7 +63,13 @@ bin/asus-g16-control set touchpad.scrollFactor 0.6
 bin/asus-g16-control set keys.m4 control-panel
 bin/asus-g16-control set-led-brightness high
 bin/asus-g16-control set-led-effect static 7c3aed
+bin/asus-g16-control set-slash enabled true
+bin/asus-g16-control set-slash mode Spectrum
 bin/asus-g16-control set-charge-limit 80
+bin/asus-g16-control set keys.m4 custom-command
+bin/asus-g16-control set keyCommands.m4 "notify-send 'M4 pressed'"
+bin/asus-g16-control set keys.copilot key-combo
+bin/asus-g16-control set keyCombos.copilot "CTRL + SHIFT + T"
 ```
 
 ## Gesture constraints
@@ -82,8 +89,12 @@ setting that cannot work.
 
 On this laptop generation, M1–M3 arrive as the standard volume-down,
 volume-up, and microphone-mute keysyms. M4 arrives as `XF86Launch1`, and the
-Copilot key arrives as `Super+Shift+F23`. Defaults preserve the media behavior,
-make M4 open this panel, and launch Codex from Copilot.
+Copilot key arrives as `Super+Shift+code:201` (`F23`). The plugin removes
+Omarchy's existing launcher binding for that code before installing the chosen
+action, preventing one press from launching both Codex and the app menu.
+
+Each special key can also run a custom one-line shell command or send a custom
+key combination such as `CTRL + SHIFT + T` to the focused application.
 
 If a firmware update changes a keysym, run `wev`, press the key once, and use
 the reported keysym in the generated `~/.config/hypr/asus-g16.lua` mapping.

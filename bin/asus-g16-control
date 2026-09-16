@@ -49,6 +49,23 @@ defaults() {
       m3: "mic-mute",
       m4: "control-panel",
       copilot: "codex"
+    },
+    keyCommands: {
+      m1: "", m2: "", m3: "", m4: "", copilot: ""
+    },
+    keyCombos: {
+      m1: "", m2: "", m3: "", m4: "", copilot: ""
+    },
+    slash: {
+      enabled: false,
+      brightness: 255,
+      interval: 0,
+      mode: "Bounce",
+      showOnBoot: true,
+      showOnShutdown: true,
+      showOnSleep: true,
+      showOnBattery: true,
+      showBatteryWarning: true
     }
   }'
 }
@@ -104,10 +121,33 @@ validate_setting() {
         *) die "unsupported gesture action: $value" ;;
       esac
       ;;
-    keys.*)
+    keys.m1|keys.m2|keys.m3|keys.m4|keys.copilot)
       case "$value" in
-        disabled|volume-down|volume-up|volume-mute|mic-mute|keyboard-light-cycle|control-panel|launcher|terminal|browser|screenshot|play-pause|codex) ;;
+        disabled|volume-down|volume-up|volume-mute|mic-mute|keyboard-light-cycle|control-panel|launcher|terminal|browser|screenshot|play-pause|codex|custom-command|key-combo) ;;
         *) die "unsupported key action: $value" ;;
+      esac
+      ;;
+    keyCommands.m1|keyCommands.m2|keyCommands.m3|keyCommands.m4|keyCommands.copilot)
+      (( ${#value} <= 512 )) || die "custom command must be at most 512 characters"
+      [[ $value != *$'\n'* && $value != *$'\r'* ]] || die "custom command must be one line"
+      ;;
+    keyCombos.m1|keyCombos.m2|keyCombos.m3|keyCombos.m4|keyCombos.copilot)
+      [[ -z $value || $value =~ ^[A-Za-z0-9_:.-]+([[:space:]]*\+[[:space:]]*[A-Za-z0-9_:.-]+)*$ ]] ||
+        die "key combo must look like CTRL + SHIFT + T"
+      ;;
+    slash.enabled|slash.showOnBoot|slash.showOnShutdown|slash.showOnSleep|slash.showOnBattery|slash.showBatteryWarning)
+      [[ $value == true || $value == false ]] || die "$path expects true or false"
+      ;;
+    slash.brightness)
+      [[ $value =~ ^[0-9]+$ ]] && (( value >= 0 && value <= 255 )) || die "Slash brightness must be 0..255"
+      ;;
+    slash.interval)
+      [[ $value =~ ^[0-9]+$ ]] && (( value >= 0 && value <= 5 )) || die "Slash interval must be 0..5"
+      ;;
+    slash.mode)
+      case "$value" in
+        Static|Bounce|Slash|Loading|BitStream|Transmission|Flow|Flux|Phantom|Spectrum|Hazard|Interfacing|Ramp|GameOver|Start|Buzzer) ;;
+        *) die "unsupported Slash animation: $value" ;;
       esac
       ;;
     *) die "unknown setting: $path" ;;
@@ -124,7 +164,7 @@ set_setting() {
     'setpath($path | split("."); $value)' "$SETTINGS" >"$tmp"
   chmod 600 "$tmp"
   mv "$tmp" "$SETTINGS"
-  generate_hyprland
+  [[ $path == slash.* ]] || generate_hyprland
 }
 
 lua_bool() {
@@ -157,11 +197,44 @@ action_command() {
 }
 
 emit_key() {
-  local json_key="$1" chord="$2" label="$3" action command
+  local json_key="$1" chord="$2" label="$3" action command combo keypart mods part index
+  local -a combo_parts
   action=$(jq -r --arg key "$json_key" '.keys[$key]' "$SETTINGS")
+  printf 'hl.unbind("%s")\n' "$chord"
   [[ $action != disabled ]] || return 0
+
+  if [[ $action == custom-command ]]; then
+    command=$(jq -r --arg key "$json_key" '.keyCommands[$key] // ""' "$SETTINGS")
+    [[ -n $command ]] || return 0
+    printf 'o.bind("%s", "%s custom command", %s)\n' "$chord" "$label" "$(jq -Rn --arg s "$command" '$s')"
+    return 0
+  fi
+
+  if [[ $action == key-combo ]]; then
+    combo=$(jq -r --arg key "$json_key" '.keyCombos[$key] // ""' "$SETTINGS")
+    [[ -n $combo ]] || return 0
+    IFS='+' read -ra combo_parts <<<"$combo"
+    index=$((${#combo_parts[@]} - 1))
+    keypart=$(trim_space "${combo_parts[$index]}")
+    mods=""
+    for (( index = 0; index < ${#combo_parts[@]} - 1; index++ )); do
+      part=$(trim_space "${combo_parts[$index]}")
+      mods+="${mods:+ }$part"
+    done
+    printf 'o.bind("%s", "%s key combo", function() hl.dispatch(hl.dsp.send_shortcut({ mods = %s, key = %s })) end)\n' \
+      "$chord" "$label" "$(jq -Rn --arg s "$mods" '$s')" "$(jq -Rn --arg s "$keypart" '$s')"
+    return 0
+  fi
+
   command=$(action_command "$action") || return 0
-  printf 'o.rebind("%s", "%s", %s)\n' "$chord" "$label" "$(jq -Rn --arg s "$command" '$s')"
+  printf 'o.bind("%s", "%s", %s)\n' "$chord" "$label" "$(jq -Rn --arg s "$command" '$s')"
+}
+
+trim_space() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
 }
 
 emit_gesture() {
@@ -271,7 +344,10 @@ generate_hyprland() {
     emit_key m2 XF86AudioRaiseVolume 'ROG M2'
     emit_key m3 XF86AudioMicMute 'ROG M3'
     emit_key m4 XF86Launch1 'ROG M4'
-    emit_key copilot 'SUPER + SHIFT + F23' 'Copilot key'
+    # Omarchy binds this hardware key as code:201. Remove both aliases so a
+    # single press cannot launch both the selected action and the root menu.
+    printf '%s\n' 'hl.unbind("SUPER + SHIFT + F23")'
+    emit_key copilot 'SUPER + SHIFT + code:201' 'Copilot key'
   } >"$tmp"
   mv "$tmp" "$HYPR_MODULE"
 
@@ -397,6 +473,28 @@ set_led_effect() {
   esac
 }
 
+set_slash() {
+  local property="${1:-}" value="${2:-}"
+  validate_setting "slash.$property" "$value"
+  case "$property" in
+    enabled)
+      if [[ $value == true ]]; then asusctl slash set --enable
+      else asusctl slash set --disable
+      fi
+      ;;
+    brightness) asusctl slash set --brightness "$value" ;;
+    interval) asusctl slash set --interval "$value" ;;
+    mode) asusctl slash set --mode "$value" ;;
+    showOnBoot) asusctl slash set --show-on-boot "$value" ;;
+    showOnShutdown) asusctl slash set --show-on-shutdown "$value" ;;
+    showOnSleep) asusctl slash set --show-on-sleep "$value" ;;
+    showOnBattery) asusctl slash set --show-on-battery "$value" ;;
+    showBatteryWarning) asusctl slash set --show-battery-warning "$value" ;;
+    *) die "unknown Slash setting: $property" ;;
+  esac
+  set_setting "slash.$property" "$value"
+}
+
 doctor() {
   local failed=0
   printf 'Device: %s / %s\n' "$(cat /sys/class/dmi/id/product_name 2>/dev/null || printf unknown)" "$(cat /sys/class/dmi/id/board_name 2>/dev/null || printf unknown)"
@@ -421,6 +519,7 @@ Usage: asus-g16-control COMMAND [ARGS]
   set SETTING-PATH VALUE
   set-led-brightness off|low|med|high
   set-led-effect static|breathe|rainbow-wave [colour] [colour2] [speed] [direction]
+  set-slash PROPERTY VALUE
   set-profile Quiet|Balanced|Performance
   set-charge-limit 20..100
   set-armoury ATTRIBUTE 0|1
@@ -440,6 +539,7 @@ main() {
       asusctl leds set "$1"
       ;;
     set-led-effect) set_led_effect "$@" ;;
+    set-slash) [[ $# == 2 ]] || die "set-slash expects PROPERTY VALUE"; set_slash "$1" "$2" ;;
     set-profile)
       [[ ${1:-} == Quiet || ${1:-} == Balanced || ${1:-} == Performance ]] || die "invalid performance profile"
       asusctl profile set "$1"
