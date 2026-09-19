@@ -37,7 +37,7 @@ the user-owned `~/.config/hypr/hyprland.lua` and saves the original as
 From a published Git repository:
 
 ```bash
-omarchy plugin add https://github.com/kensmith77/omarchy-asus-rog-g16.git --enable
+omarchy plugin add https://github.com/design-nexus/omarchy-asus-rog-g16.git --enable
 ```
 
 The checked-out plugin on this machine already lives at:
